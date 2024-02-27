@@ -55,6 +55,7 @@ class BaseModel(abc.ABC):
         max_code_output_characters=1000,
         code_execution_timeout=10.0,
         max_code_executions=3,
+        error_recovery_attempts=0,
         stop_on_code_error=True,
         handle_code_execution=True,  # for some of the inference types (e.g. nemo), code execution is handled internally
     ):
@@ -148,10 +149,10 @@ class BaseModel(abc.ABC):
             for idx in range(len(prompts))
         ]
         remaining_ids = list(range(len(new_outputs)))
-        num_executions = 0
+        recovery_attempts = [0] * len(new_outputs)
+        successfull_executions = [0] * len(new_outputs)
         with ThreadPoolExecutor(max_workers=len(prompts)) as executor:
             while len(remaining_ids) > 0:
-                num_executions += 1
                 request["prompts"] = [new_outputs[idx]['full_prompt'] for idx in remaining_ids]
 
                 outputs = self._single_call(**request)
@@ -168,17 +169,29 @@ class BaseModel(abc.ABC):
                             session_id=new_outputs[idx]['session_id'],
                         )
                 for idx, output in zip(remaining_ids, outputs):
-                    new_outputs[idx]['full_prompt'] += output
+                    # new_outputs[idx]['full_prompt'] += output
                     if output.endswith(CODE_SEPARATORS[-1]):
                         result, new_outputs[idx]['session_id'] = futures[idx].result()
                         # for now if there is any error or no output, we stop generation
                         # might revise in the future to allow LLM to recover
                         if result['error_message']:
+                            recovery_attempts[idx] += 1
                             new_outputs[idx]['error_message'] = result['error_message']
-                            if self.stop_on_code_error:
+                            if self.stop_on_code_error or recovery_attempts[idx] > self.error_recovery_attempts:
+                                new_outputs[idx]['full_prompt'] += output
                                 continue
+                            # removing failed code block from the output
+                            # and putting the re-generation request back into the queue
+                            if recovery_attempts[idx] == 1:
+                                output = output.split(CODE_SEPARATORS[0])[0]
+                                new_outputs[idx]['full_prompt'] += output
+                            new_ids.append(idx)
+                            continue
                         else:
+                            recovery_attempts[idx] = 0
+                            successfull_executions[idx] += 1
                             new_outputs[idx]['error_message'] = ''
+                            new_outputs[idx]['full_prompt'] += output
 
                         # adding code output to the prompt
                         code_output = (
@@ -187,7 +200,7 @@ class BaseModel(abc.ABC):
                         new_outputs[idx]['full_prompt'] += code_output
                         # setting a limit on max code executions to speed things up
                         # (sometimes keeps repeating the same sequence forever)
-                        if num_executions >= self.max_code_executions:
+                        if successfull_executions[idx] >= self.max_code_executions:
                             new_outputs[idx]['error_message'] = "Max code executions reached"
                         else:
                             new_ids.append(idx)
