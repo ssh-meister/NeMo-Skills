@@ -17,6 +17,7 @@ import abc
 import json
 import logging
 import os
+import random
 import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Union
@@ -66,6 +67,7 @@ class BaseModel(abc.ABC):
         self.max_code_output_characters = max_code_output_characters
         self.code_execution_timeout = code_execution_timeout
         self.max_code_executions = max_code_executions
+        self.error_recovery_attempts = error_recovery_attempts
         self.handle_code_execution = handle_code_execution
         self.stop_on_code_error = stop_on_code_error
         if self.handle_code_execution and sandbox is None:
@@ -100,6 +102,7 @@ class BaseModel(abc.ABC):
         random_seed,
         stop_phrases: List[str],
     ):
+        random.seed(random_seed)
         # temperature of 0 means greedy, but it's not always supported by the server
         # so setting explicit greedy parameters instead
         if temperature == 0:
@@ -154,7 +157,6 @@ class BaseModel(abc.ABC):
         with ThreadPoolExecutor(max_workers=len(prompts)) as executor:
             while len(remaining_ids) > 0:
                 request["prompts"] = [new_outputs[idx]['full_prompt'] for idx in remaining_ids]
-
                 outputs = self._single_call(**request)
                 new_ids = []
                 # checking if any of the outputs need code execution and submitting requests in parallel
@@ -169,7 +171,6 @@ class BaseModel(abc.ABC):
                             session_id=new_outputs[idx]['session_id'],
                         )
                 for idx, output in zip(remaining_ids, outputs):
-                    # new_outputs[idx]['full_prompt'] += output
                     if output.endswith(CODE_SEPARATORS[-1]):
                         result, new_outputs[idx]['session_id'] = futures[idx].result()
                         # for now if there is any error or no output, we stop generation
@@ -186,6 +187,8 @@ class BaseModel(abc.ABC):
                                 output = output.split(CODE_SEPARATORS[0])[0]
                                 new_outputs[idx]['full_prompt'] += output
                             new_ids.append(idx)
+                            # we need to run code generation again with different random seed
+                            request['random_seed'] = random.randint(0, 10**9)
                             continue
                         else:
                             recovery_attempts[idx] = 0
@@ -204,6 +207,8 @@ class BaseModel(abc.ABC):
                             new_outputs[idx]['error_message'] = "Max code executions reached"
                         else:
                             new_ids.append(idx)
+                    else:
+                        new_outputs[idx]['full_prompt'] += output
                 remaining_ids = new_ids
 
         # removing original prompt and stop tokens from the end of the generated text
