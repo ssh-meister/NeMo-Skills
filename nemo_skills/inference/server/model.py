@@ -256,12 +256,11 @@ class BaseModel(abc.ABC):
 
         # majority voting on valid code output results
         counts = Counter(res for res in results if res)
-        most_common = counts.most_common(1)[0][0]
-
         # all errors
-        if not most_common:
+        if not counts:
             return
-
+        
+        most_common = counts.most_common(1)[0][0]
         valid_idx = results.index(most_common)
         new_output['full_prompt'] += outputs[valid_idx]
         new_output['error_message'] = ''
