@@ -246,7 +246,7 @@ class LocalSandbox(Sandbox):
         try:
             output = self._send_request(request, timeout, "execute_code").json()
             state = output.pop("state")
-            if state is not None:
+            if state:
                 self.sessions[session_id] = state
         except requests.exceptions.Timeout:
             output = {'result': None, 'error_message': Sandbox.TIMEOUT_ERROR}

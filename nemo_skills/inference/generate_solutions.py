@@ -122,7 +122,7 @@ def generate_solutions(cfg: GenerateSolutionsConfig):
             if idx == cfg.max_samples:
                 break
 
-            prompts.append(Prompt(cfg.prompt, data_point))
+            prompts.append(Prompt(cfg.prompt, data_point, generated_solution=data_point.get("generated_solution", "")))
             data_points.append(data_point)
 
             if len(prompts) == cfg.batch_size:
@@ -131,7 +131,7 @@ def generate_solutions(cfg: GenerateSolutionsConfig):
                 for output, original_data_point in zip(outputs, data_points):
                     # to make it easier to follow up with evaluation and limit accidental errors, we are adding
                     # all of the ground-truth data to the output file alongside the generated solutions
-                    output.update(original_data_point)
+                    output.update({key: value for key, value in original_data_point.items() if key not in output})
                     fout.write(json.dumps(output) + "\n")
                 prompts = []
                 data_points = []
@@ -140,7 +140,7 @@ def generate_solutions(cfg: GenerateSolutionsConfig):
         if len(prompts) > 0:
             outputs = llm(stop_phrases=list(cfg.prompt.stop_phrases), prompts=prompts, **asdict(cfg.inference))
             for output, original_data_point in zip(outputs, data_points):
-                output.update(original_data_point)
+                output.update({key: value for key, value in original_data_point.items() if key not in output})
                 fout.write(json.dumps(output) + "\n")
 
 
