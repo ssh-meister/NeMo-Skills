@@ -53,7 +53,7 @@ fi \
 # TODO: when parameters are incorrect, the error is displayed in a bizarre way
 
 
-MOUNTS = "{NEMO_SKILLS_CODE}:/code,{model_path}:/model,{output_dir}:/results"
+MOUNTS = "{NEMO_SKILLS_CODE}:/code,{model_path}:/model,{output_dir}:/results,{other_mounts}"
 LOGS = "{output_dir}/slurm_logs-rs{random_seed}.txt"
 JOB_NAME = "labelling-{model_name}-rs{random_seed}"
 
@@ -91,6 +91,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", required=True)
     parser.add_argument("--num_runs", type=int, default=1)
     parser.add_argument("--num_gpus", type=int, required=True)
+    parser.add_argument("--other_mounts", default="", help="Additional paths to be mounted in container")
     parser.add_argument(
         "--dependent_jobs",
         type=int,
@@ -122,6 +123,7 @@ if __name__ == "__main__":
         "num_tasks": num_tasks,
         "server_type": args.server_type,
         "NEMO_SKILLS_CODE": NEMO_SKILLS_CODE,
+        "other_mounts": args.other_mounts
     }
 
     Path(args.output_dir).mkdir(exist_ok=True, parents=True)
