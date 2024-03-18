@@ -139,6 +139,17 @@ Execution error: list indices must be integers or slices, not Symbol
 {end_code_output}
 Let's look at the solutions variable to see what's going on.
 {start_code}
+import sympy as sp
+
+# define the symbols
+a, b = sp.symbols('a b')
+
+# the sum of the conjugates is -4 and the product is 1
+eq1 = sp.Eq(a + sp.sqrt(b) + a - sp.sqrt(b), -4)
+eq2 = sp.Eq(a**2 - b, 1)
+
+# solve for a and b
+solutions = sp.solve((eq1, eq2), (a, b))
 solutions
 {end_code}
 {start_code_output}
