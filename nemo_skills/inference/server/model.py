@@ -213,12 +213,14 @@ class BaseModel(abc.ABC):
                         # might revise in the future to allow LLM to recover
                         if result['error_message']:
                             new_outputs[idx]['error_message'] = result['error_message']
+                            code_output = result['error_message']
                             if self.stop_on_code_error:
                                 new_outputs[idx]['full_prompt'].generated_solution += output
                                 continue
                             text_only_part = output.split(CODE_SEPARATORS[0])[0]
                             new_outputs[idx]['full_prompt'].generated_solution += text_only_part
-                            code_output = self._recover_from_error(request, new_outputs[idx], executor)
+                            if self.error_recovery.recovery_attempts:
+                                code_output = self._recover_from_error(request, new_outputs[idx], executor)
                             # if re-generation did not help
                             if code_output is None:
                                 code_output = result["result"]
