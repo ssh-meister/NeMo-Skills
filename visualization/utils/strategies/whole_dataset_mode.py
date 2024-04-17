@@ -24,7 +24,15 @@ import requests
 from dash import dash_table, html
 from flask import current_app
 from omegaconf import OmegaConf
-from settings.constants import GREEDY, OUTPUT, OUTPUT_PATH, PARAMETERS_FILE_NAME, SEPARATOR_ID, WHOLE_DATASET_MODE
+from settings.constants import (
+    GREEDY,
+    OUTPUT,
+    OUTPUT_PATH,
+    PARAMETERS_FILE_NAME,
+    SEPARATOR_ID,
+    STATISTICS_FOR_WHOLE_DATASET,
+    WHOLE_DATASET_MODE,
+)
 from settings.templates import summarize_results_template
 from utils.common import get_available_models, get_examples, run_subprocess
 from utils.strategies.base_strategy import ModeStrategies
@@ -123,7 +131,7 @@ class WholeDatasetModeStrategy(ModeStrategies):
         if not success:
             return html.Pre(f"Something went wrong\n{errors}")
 
-        runs_storage[run_index] = {
+        runs_storage[str(run_index)] = {
             "utils": utils,
             "examples": get_examples().get(utils["examples_type"], []),
         }
@@ -132,15 +140,18 @@ class WholeDatasetModeStrategy(ModeStrategies):
             f.write(json.dumps(runs_storage))
 
         df = pd.read_csv(os.path.join(results_path, "results.csv"))
+        for statistic in STATISTICS_FOR_WHOLE_DATASET:
+            df[statistic] = df[statistic].map(lambda x: '{:.2f}%'.format(x))
         return html.Div(
             [
                 html.Div(
                     [
-                        html.Pre(f'Done. Results are in folder\n{"/".join(output_file.split("/")[:-1])}'),
+                        html.Pre(f'Done. Results are in folder\n{metrics_directory}'),
                         dash_table.DataTable(
                             id='table',
                             columns=[{"name": i, "id": i} for i in df.columns],
                             data=df.to_dict('records'),
+                            cell_selectable=False,
                             style_table={'overflowX': 'auto'},
                         ),
                     ]

@@ -103,7 +103,7 @@ def get_few_shots_layout(examples: List[Dict]) -> dbc.AccordionItem:
 def get_save_dataset_layout() -> html.Div:
     return html.Div(
         [
-            dbc.Button("Save dataset", id="save_dataset"),
+            dbc.Button("Save dataset", id="save_dataset", class_name='button-class'),
             dbc.Modal(
                 [
                     dbc.ModalBody(
@@ -119,7 +119,6 @@ def get_save_dataset_layout() -> html.Div:
                 },
             ),
         ],
-        style={'margin-left': '1px'},
     )
 
 
@@ -140,6 +139,7 @@ def get_compare_test_layout() -> html.Div:
                         outline=True,
                         color="primary",
                         className="me-1",
+                        class_name='button-class',
                         style={'margin-left': '1px'},
                     ),
                     get_selector_layout(
@@ -166,7 +166,7 @@ def get_compare_test_layout() -> html.Div:
 
 def get_stats_text(general_stats: bool = False, delete: bool = False):
     if delete:
-        return "write name of the statistic you want to delete"
+        return "Choose the name of the statistic you want to delete"
     else:
         if general_stats:
             return (
@@ -230,7 +230,7 @@ def get_add_stats_layout() -> html.Div:
                 id="stats_modes",
                 labels=["general stats", "delete mode"],
                 values=[GENERAL_STATS, DELETE],
-                additional_params={"inline": True},
+                additional_params={"inline": True, "style": {"margin-left": "10px"}},
             ),
         ],
         close_button=True,
@@ -254,7 +254,7 @@ def get_add_stats_layout() -> html.Div:
             dbc.Button(
                 "Stats",
                 id="set_new_stats_button",
-                style={'margin-left': '2px'},
+                class_name='button-class',
             ),
             dbc.Modal(
                 [
