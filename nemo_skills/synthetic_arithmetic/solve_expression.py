@@ -82,4 +82,4 @@ def solve_expression(expression):
         expression = new_expression
         tokens = tokenize(expression)
     
-    return " = ".join(steps)
+    return steps

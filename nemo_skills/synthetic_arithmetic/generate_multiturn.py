@@ -1,4 +1,5 @@
 import random
+import re
 
 from solve_expression import solve_expression
 from utils import is_valid_multiturn_op, get_template
@@ -60,7 +61,14 @@ def generate_multiturn(args):
         num_ops = random.choice(args.num_ops)
         expression = generate_expression((args.min_num, args.max_num), args.allowed_ops, num_ops)
         answer = evaluate_expression(expression)
-        solution = solve_expression(expression)
+        solution_steps = solve_expression(expression)
+
+        solution = []
+        for step in solution_steps[:-1]:
+            solution.append(re.sub(r"(-\d+)", r"(\1)", step))
+        solution.append(solution_steps[-1])
+        solution = " = ".join(solution)
+        
         if answer is None:
             continue
         
