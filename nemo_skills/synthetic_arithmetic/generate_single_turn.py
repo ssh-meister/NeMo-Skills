@@ -1,6 +1,44 @@
 import random
 
-from utils import get_template, is_valid_op
+from utils import get_eval_func, get_solution_template, get_str_repr, get_template, is_valid_op
+
+
+def make_question(op, p, q):
+    str_p = get_str_repr(p)
+    str_q = get_str_repr(q)
+
+    questoin_template = get_template(op)
+    solution_template = get_solution_template(op)
+    eval_func = get_eval_func(op)
+
+    answer = eval_func(p=p, q=q)
+    question = questoin_template.format(p=str_p, q=str_q)
+    solution = solution_template.format(p=str_p, q=str_q, ans=answer)
+
+    sample = dict(
+        question=question,
+        solution=solution,
+        expected_answer=answer,
+        num_operations=1,
+    )
+
+    return sample
+
+
+def gather_questions(allowed_ops, p, q):
+    questions = []
+
+    for op in allowed_ops:
+        if not is_valid_op(op, p, q):
+            continue
+
+        if op == '/':
+            p, q = p * q, p
+
+        question = make_question(op, p, q)
+        questions.append(question)
+
+    return questions
 
 
 def generate_all(args):
@@ -12,41 +50,9 @@ def generate_all(args):
             else:
                 p, q = y, x
 
-            if "+" in args.allowed_ops and is_valid_op("+", p, q):
-                template = get_template("+")
-                expression = template.format(p=str(p) if p >= 0 else f"({p})", q=str(q) if q >= 0 else f"({q})")
-                samples.append(dict(question=expression, expected_answer=p+q, num_operations=1))
-        
-            if "-" in args.allowed_ops and is_valid_op("-", p, q):
-                template = get_template("-")
-                expression = template.format(p=str(p) if p >= 0 else f"({p})", q=str(q) if q >= 0 else f"({q})")
-                samples.append(dict(question=expression, expected_answer=p-q, num_operations=1))
+            questions = gather_questions(args.allowed_ops, p, q)
+            samples.extend(questions)
 
-            if "*" in args.allowed_ops and is_valid_op("*", p, q):
-                template = get_template("*")
-                expression = template.format(p=str(p) if p >= 0 else f"({p})", q=str(q) if q >= 0 else f"({q})")
-                samples.append(dict(question=expression, expected_answer=p*q, num_operations=1))
-            
-            if "/" in args.allowed_ops and is_valid_op("/", p*q, q):
-                template = get_template("/")
-                expression = template.format(p=str(p*q) if p*q >= 0 else f"({p*q})", q=str(p) if p >= 0 else f"({p})")
-                samples.append(dict(question=expression, expected_answer=q, num_operations=1))
-                
-            if "%" in args.allowed_ops and is_valid_op("%", p, q):
-                template = get_template("%")
-                expression = template.format(p=str(p) if p >= 0 else f"({p})", q=str(q) if q >= 0 else f"({q})")
-                samples.append(dict(question=expression, expected_answer=p * q / 100, num_operations=1))
-            
-            if "**" in args.allowed_ops and is_valid_op("**", p, q):
-                template = get_template("**")
-                expression = template.format(p=str(p) if p >= 0 else f"({p})", q=str(q) if q >= 0 else f"({q})")
-                samples.append(dict(question=expression, expected_answer=p**q, num_operations=1))
-            
-            if "sqrt" in args.allowed_ops and is_valid_op("sqrt", p, q):
-                template = get_template("sqrt")
-                expression = template.format(p=str(p) if p >= 0 else f"({p})")
-                samples.append(dict(question=expression, expected_answer=p**0.5, num_operations=1))
-    
     return samples
 
 
@@ -55,40 +61,8 @@ def generate_random(args):
     for _ in range(args.num_samples):
         p = random.randint(args.min_num, args.max_num)
         q = random.randint(args.min_num, args.max_num)
-        
-        if "+" in args.allowed_ops and is_valid_op("+", p, q):
-            template = get_template("+")
-            expression = template.format(p=str(p) if p >= 0 else f"({p})", q=str(q) if q >= 0 else f"({q})")
-            samples.append(dict(question=expression, expected_answer=p+q, num_operations=1))
-    
-        if "-" in args.allowed_ops and is_valid_op("-", p, q):
-            template = get_template("-")
-            expression = template.format(p=str(p) if p >= 0 else f"({p})", q=str(q) if q >= 0 else f"({q})")
-            samples.append(dict(question=expression, expected_answer=p-q, num_operations=1))
 
-        if "*" in args.allowed_ops and is_valid_op("*", p, q):
-            template = get_template("*")
-            expression = template.format(p=str(p) if p >= 0 else f"({p})", q=str(q) if q >= 0 else f"({q})")
-            samples.append(dict(question=expression, expected_answer=p*q, num_operations=1))
-        
-        if "/" in args.allowed_ops and is_valid_op("/", p*q, q):
-            template = get_template("/")
-            expression = template.format(p=str(p*q) if p*q >= 0 else f"({p*q})", q=str(p) if p >= 0 else f"({p})")
-            samples.append(dict(question=expression, expected_answer=q, num_operations=1))
-            
-        if "%" in args.allowed_ops and is_valid_op("%", p, q):
-            template = get_template("%")
-            expression = template.format(p=str(p) if p >= 0 else f"({p})", q=str(q) if q >= 0 else f"({q})")
-            samples.append(dict(question=expression, expected_answer=p * q / 100, num_operations=1))
-        
-        if "**" in args.allowed_ops and is_valid_op("**", p, q):
-            template = get_template("**")
-            expression = template.format(p=str(p) if p >= 0 else f"({p})", q=str(q) if q >= 0 else f"({q})")
-            samples.append(dict(question=expression, expected_answer=p**q, num_operations=1))
-        
-        if "sqrt" in args.allowed_ops and is_valid_op("sqrt", p, q):
-            template = get_template("sqrt")
-            expression = template.format(p=str(p) if p >= 0 else f"({p})")
-            samples.append(dict(question=expression, expected_answer=p**0.5, num_operations=1))
-    
+        questions = gather_questions(args.allowed_ops, p, q)
+        samples.extend(questions)
+
     return samples

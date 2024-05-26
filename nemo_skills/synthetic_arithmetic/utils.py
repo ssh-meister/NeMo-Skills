@@ -1,7 +1,6 @@
 import random
 
-
-templates = {
+question_templates = {
     "+": [
         '{p} + {q}',
         '{p}+{q}',
@@ -84,13 +83,49 @@ templates = {
         'Find the result of {eq}.',
         'Work out the value of {eq}.',
         'Determine the result of {eq}.',
-    ]
+    ],
 }
 
 
-def get_template(op):
-    template = random.choice(templates[op])
+solution_templates = {
+    "+": "{p} + {q} = {ans}",
+    "-": "{p} - {q} = {ans}",
+    "*": "{p} * {q} = {ans}",
+    "/": "{p} / {q} = {ans}",
+    "%": "{p} * {q} / 100 = {ans}",
+    "**": "{p} ** {q} = {ans}",
+    "sqrt": "{p} ** 0.5 = {ans}",
+}
+
+
+eval_funcs = {
+    "+": lambda **k: k.get('p') + k.get('q'),
+    "-": lambda **k: k.get('p') - k.get('q'),
+    "*": lambda **k: k.get('p') * k.get('q'),
+    "/": lambda **k: k.get('p') / k.get('q'),
+    "%": lambda **k: k.get('p') * k.get('q') / 100,
+    "**": lambda **k: k.get('p') ** k.get('q'),
+    "sqrt": lambda **k: k.get('p') ** 0.5,
+}
+
+
+def get_eval_func(op):
+    func = eval_funcs[op]
+    return func
+
+
+def get_solution_template(op):
+    template = solution_templates[op]
     return template
+
+
+def get_template(op):
+    template = random.choice(question_templates[op])
+    return template
+
+
+def get_str_repr(num):
+    return str(num) if num >= 0 else f"({num})"
 
 
 def is_valid_op(op, p, q):
@@ -105,7 +140,7 @@ def is_valid_op(op, p, q):
     elif op == "%":
         return p >= 0 and round(q * p / 100, 1) == q * p / 100
     elif op == "**":
-        return 2 <= q <= 10 and - 10000 <= p ** q <= 10000
+        return 2 <= q <= 10 and -10000 <= p**q <= 10000
     elif op == "sqrt":
         return p > 1 and int(p**0.5) == p**0.5
 
@@ -120,8 +155,9 @@ def is_valid_multiturn_op(op, p, q):
     elif op == "/":
         return q != 0 and int(p / q) == p / q
     elif op == "**":
-        return 2 <= q <= 10 and - 10000 <= p ** q <= 10000
-    
+        return 2 <= q <= 10 and -10000 <= p**q <= 10000
+
+
 def augment_expression(expression):
     mul = random.choice(["*", "\\cdot", "\\times"])
     div = random.choice(["/", "\\div", ":"])
