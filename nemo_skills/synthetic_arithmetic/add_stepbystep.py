@@ -52,17 +52,12 @@ def substitute_arith(args):
             for expression, start in extract_expressions(output):
                 end = start + len(expression)
                 parts = expression.split("=")
+
                 if len(parts) != 2:
                     new_output.append(output[last_end:end])
                     last_end = end
                     continue
-
                 expr, ans = parts
-                counter = Counter(expr)
-                if get_op_counts(counter) < 2:
-                    new_output.append(output[last_end:end])
-                    last_end = end
-                    continue
 
                 try:
                     solution_steps = solve_expression(expr)
