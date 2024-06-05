@@ -33,11 +33,35 @@ sys.path.append(str(Path(__file__).absolute().parents[2]))
 from nemo_skills.finetuning.filtering_utils import downsample_data, process_bad_solutions
 from nemo_skills.inference.prompt.utils import Prompt, get_prompt_config
 from nemo_skills.utils import get_help_message, nested_dataclass, setup_logging, unroll_files
-
+from nemo_skills.finetuning.data_preparation_utils.generate_synthetic import generate_all, generate_random, generate_multiturn
 LOG = logging.getLogger(__file__)
 
 # TODO: this should be done as a pipeline with different filterings / downsampling
 #       ideally directly use nemo curator for this
+
+
+@nested_dataclass
+class SyntehicDataConfig:
+    """Configuration for synthetic data generation."""
+    
+    min_num: int = 1 # minimum number in the generated expressions
+    max_num: int = 100 # maximum number in the generated expressions
+    num_samples: int = 0 # number of samples to generate
+
+    # allowed operations in the generated expressions
+    # can be any of: add, sub, mul, div, percent, pow, sqrt for all and random generation types
+    # for multiturn, only add, sub, div, mul and pow are allowed
+    allowed_ops: List[str] = field(default_factory=lambda: ["add", "sub", "mul", "div", "percent", "pow", "sqrt"])
+    # number of operations in the generated expressions
+    # must be 1 for all and random generation types
+    # and >= 1 for multiturn generation type
+    num_ops: List[int] = field(default_factory=lambda: [1])
+    # all, random, multiturn
+    # all: generates sequentially with all numbers pairs from min_num to max_num
+    # random: generates randomly with random numbers from min_num to max_num
+    # multiturn: generates multiturn expressions with num_ops operations and
+    # random numbers from min_num to max_num
+    generation_type: str = "all"
 
 
 @nested_dataclass
@@ -47,6 +71,7 @@ class PrepareSFTDataConfig:
     prediction_jsonl_files: Optional[str] = None  # can specify multiple patters separated by space
     preprocessed_dataset_files: Optional[str] = None  # can specify datasets from HF instead of prediction_jsonl_files
     output_path: str = MISSING
+    synthetic_data_config: SyntehicDataConfig = field(default_factory=SyntehicDataConfig)
     # can provide additional metadata to store (e.g. dataset or generation_type)
     metadata: Dict[Any, Any] = field(default_factory=dict)
     skip_first: int = 0  # useful for skipping validation set from train_full generation (it's always first)
@@ -55,6 +80,7 @@ class PrepareSFTDataConfig:
 
     downsampling_method: Optional[str] = None  # random or fair
     num_output_samples: int = -1
+    random_seed: int = 42
 
     # TODO: support prompt config directly, but there are some hydra issues
     prompt_type: str = 'openmathinstruct/sft'
@@ -67,8 +93,8 @@ class PrepareSFTDataConfig:
 
     def __post_init__(self):
         """Building data_file from dataset/split_name if not provided directly."""
-        if self.prediction_jsonl_files is None and self.preprocessed_dataset_files is None:
-            raise ValueError("Either `prediction_jsonl_files` or `preprocessed_dataset_files` should be provided")
+        if self.prediction_jsonl_files is None and self.preprocessed_dataset_files is None and self.synthetic_data_config.num_samples == 0:
+            raise ValueError("Either `prediction_jsonl_files` or `preprocessed_dataset_files` or `synthetic_data_config.num_samples` should be provided")
 
         if self.downsampling_method is None and self.num_output_samples != -1:
             raise ValueError("Cannot use `num_output_samples` without `downsampling_method`")
@@ -146,6 +172,22 @@ def read_raw_data(file_handles, cfg: PrepareSFTDataConfig, grouped_samples: Dict
     return len(questions)
 
 
+def generate_synthetic_data(cfg: PrepareSFTDataConfig, grouped_samples: Dict[str, List]):
+    if cfg.synthetic_data_config.generation_type == "all":
+        samples = generate_all(cfg.synthetic_data_config)
+    elif cfg.synthetic_data_config.generation_type == "random":
+        samples = generate_random(cfg.synthetic_data_config)
+    elif cfg.synthetic_data_config.generation_type == "multiturn":
+        samples = generate_multiturn(cfg.synthetic_data_config)
+    else:
+        raise ValueError(f"Unknown generation type: {cfg.synthetic_data_config.generation_type}")
+
+    for sample in samples:
+        grouped_samples[sample['question']].append(sample)
+
+    return len(samples)
+
+
 cs = hydra.core.config_store.ConfigStore.instance()
 cs.store(name="base_prepare_sft_data_config", node=PrepareSFTDataConfig)
 
@@ -154,6 +196,7 @@ cs.store(name="base_prepare_sft_data_config", node=PrepareSFTDataConfig)
 def prepare_sft_data(cfg: PrepareSFTDataConfig):
     cfg = PrepareSFTDataConfig(_init_nested=True, **cfg)
     LOG.info("Config used: %s", cfg)
+    random.seed(cfg.random_seed)
 
     data_size = 0
     grouped_samples = defaultdict(list)
@@ -167,6 +210,12 @@ def prepare_sft_data(cfg: PrepareSFTDataConfig):
         data_size += read_raw_data(file_handles, cfg, grouped_samples)
         for handle in file_handles:
             handle.close()
+
+    if cfg.synthetic_data_config.num_samples:
+        # TODO: synthetic data generation pipeline was meant to be run multiple times
+        #       with different configurations. How to handle this in one run?
+        LOG.info("Generating synthetic data")
+        data_size += generate_synthetic_data(cfg, grouped_samples) 
 
     prepared_data = []
     total_covered = 0
