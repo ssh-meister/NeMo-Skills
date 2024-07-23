@@ -232,6 +232,143 @@ class CodeExecutionWrapper:
         return output
 
 
+class SeparateArithmeticWrapper:
+    def __init__(self, model: BaseModel, arith_solver: str = 'eval'):
+        self.model = model
+        self.max_arith_executions = 20
+        self.max_arith_tokens = 256
+        self.arith_solver = arith_solver  # llm or eval
+
+    def generate(
+        self,
+        prompts: list[str],
+        tokens_to_generate: int = 512,
+        temperature: float = 0.0,
+        top_p: float = 0.95,
+        top_k: int = 0,
+        repetition_penalty: float = 1.0,
+        random_seed: int = 0,
+        stop_phrases: list[str] | None = None,
+        remove_stop_phrases: bool = True,
+    ) -> list[dict]:
+        if stop_phrases is None:
+            stop_phrases = []
+        # making a copy of prompts to not corrupt original data
+        new_prompts = copy.deepcopy(prompts)
+
+        # prompts are added later
+        request = {
+            "prompts": new_prompts,
+            "tokens_to_generate": tokens_to_generate,
+            "temperature": temperature,
+            "top_k": top_k,
+            "top_p": top_p,
+            "random_seed": random_seed,
+            "repetition_penalty": repetition_penalty,
+            "stop_phrases": stop_phrases + ['='],
+            "remove_stop_phrases": False,  # we need to see where the model stopped
+        }
+
+        # making requests to LLM and iterating on prompts that produce code tokens
+        # after executing code and getting result back into the prompt
+        new_outputs = [
+            {
+                'prompt': new_prompts[idx],
+                'result': None,
+                'error_message': Sandbox.NOT_EXECUTED,
+                'session_id': None,
+            }
+            for idx in range(len(new_prompts))
+        ]
+        remaining_ids = list(range(len(new_outputs)))
+        num_executions = 0
+        while len(remaining_ids) > 0:
+            num_executions += 1
+            request["prompts"] = [new_outputs[idx]['prompt'] for idx in remaining_ids]
+            outputs = [output['generation'] for output in self.model.generate(**request)]
+            new_ids = []
+            arith_outputs = {}
+            for idx, output in zip(remaining_ids, outputs):
+                extracted_expression = self._extract_last_expression(output)
+                new_outputs[idx]['prompt'] += output
+                new_outputs[idx]['error_message'] = ''
+                if extracted_expression:
+                    arith_outputs[idx] = extracted_expression
+
+            continued_arith_outputs = self._solve_arithmetic(request, list(arith_outputs.values()))
+
+            for idx in remaining_ids:
+                if idx in arith_outputs:
+                    new_outputs[idx]['prompt'] += continued_arith_outputs.pop(0)
+                    # setting a limit on max code executions to speed things up
+                    # (sometimes keeps repeating the same sequence forever)
+                    if num_executions >= self.max_arith_executions:
+                        new_outputs[idx]['error_message'] = "Max arith steps reached"
+                    else:
+                        new_ids.append(idx)
+                elif output.endswith('='):
+                    # if the generation ends with '=' but there is no arithmetic expression
+                    # we can just continue generation
+                    new_ids.append(idx)
+
+            remaining_ids = new_ids
+
+        # removing original prompt and stop tokens from the end of the generated text
+        outputs = []
+        for output, orig_prompt in zip(new_outputs, prompts):
+            outputs.append(
+                {'generation': output['prompt'][len(orig_prompt) :], 'error_message': output['error_message']}
+            )
+        if remove_stop_phrases:
+            postprocess_output(outputs, stop_phrases)
+        return outputs
+
+    def _extract_last_expression(self, prompt: str) -> str:
+        """Extracts the last arithmetic expression to be evaluated separately."""
+        if not prompt.strip().endswith('=') or prompt.find('<arith>') <= prompt.find('</arith>'):
+            return ""
+
+        return prompt[prompt.rfind("<arith>") :]
+
+    def _solve_arithmetic(self, request, prompts: str) -> str:
+        """Makes model call to solve arithmetic expression separately."""
+        if self.arith_solver == 'llm':
+            return self._solve_arithmetic_llm(request, prompts)
+        elif self.arith_solver == 'eval':
+            return [self._solve_arithmetic_python(expr) for expr in prompts]
+        else:
+            raise ValueError(f"Unknown arithmetic solver: {self.arith_solver}")
+
+    def _solve_arithmetic_llm(self, request, prompts: str) -> str:
+        arithmetic_request = {key: value for key, value in request.items() if key != 'prompts'}
+        arithmetic_request['prompts'] = [expr for expr in prompts if expr]
+        arithmetic_request['tokens_to_generate'] = self.max_arith_tokens
+        arithmetic_request['temperature'] = 0.0
+        arithmetic_request['stop_phrases'] = arithmetic_request['stop_phrases'][:-1] + ["</arith>"]
+
+        if arithmetic_request['prompts']:
+            arithmetic_outputs = self.model.generate(**arithmetic_request)
+        else:
+            arithmetic_outputs = []
+
+        return [output['generation'][len(prompts[idx]) :] for idx, output in enumerate(arithmetic_outputs)]
+
+    def _solve_arithmetic_python(self, expr: str) -> str:
+        """Solves arithmetic expression using Python interpreter."""
+        eval_expr = expr.replace("<arith>", "").replace("$", "").replace(",", "").split('=')[0].strip()
+        try:
+            result = " " + str(eval(eval_expr))
+        except:
+            result = ""
+
+        if expr.startswith("$") or expr.startswith("<arith>$"):
+            result += "$"
+        if "<arith>" in expr:
+            result += "</arith>"
+
+        return result
+
+
 def server_params():
     """Returns server documentation (to include in cmd help)."""
     # TODO: This needs a fix now
@@ -239,17 +376,22 @@ def server_params():
     return python_doc_to_cmd_help(BaseModel, docs_prefix=prefix, arg_prefix="server.")
 
 
-def get_code_execution_model(server_type, code_execution=None, sandbox=None, **kwargs):
+def get_code_execution_model(server_type, code_execution=None, sandbox=None, execution_type='code', **kwargs):
     """A helper function to make it easier to set server through cmd."""
     model = get_model(server_type=server_type, **kwargs)
-    if isinstance(model, NemoModel):  # nemo handles code execution directly
-        LOG.warning(
-            "Nemo model currently has a bug in handling stop words and thus shouldn't be used for code execution"
-        )
-        if code_execution is not None:
-            raise ValueError("Extra code execution parameters are not supported for Nemo model.")
-        return model
-    if code_execution is None:
-        code_execution = {}
-    code_execution_config = CodeExecutionConfig(**code_execution)
-    return CodeExecutionWrapper(model=model, sandbox=sandbox, config=code_execution_config)
+    if execution_type == 'code':
+        if isinstance(model, NemoModel):  # nemo handles code execution directly
+            LOG.warning(
+                "Nemo model currently has a bug in handling stop words and thus shouldn't be used for code execution"
+            )
+            if code_execution is not None:
+                raise ValueError("Extra code execution parameters are not supported for Nemo model.")
+            return model
+        if code_execution is None:
+            code_execution = {}
+        code_execution_config = CodeExecutionConfig(**code_execution)
+        return CodeExecutionWrapper(model=model, sandbox=sandbox, config=code_execution_config)
+    elif execution_type in ['llm', 'eval']:
+        return SeparateArithmeticWrapper(model=model, arith_solver=execution_type)
+    else:
+        raise ValueError(f"Unknown execution type: {execution_type}")
