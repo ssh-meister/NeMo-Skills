@@ -94,13 +94,13 @@ if __name__ == "__main__":
     if args.chat_format:
         extra_arguments = (
             " ++model.data.chat=True "
-            f" model.data.validation_ds.file_path=/code/datasets/{args.validation_dataset}/validation-sft-chat.jsonl "
+            f" model.data.validation_ds.file_names=[/code/datasets/{args.validation_dataset}/validation-sft-chat.jsonl] "
         ) + extra_arguments
     else:
         if args.training_algo == "sft":
             extra_arguments = (
                 " ++model.data.chat=False "
-                f" model.data.validation_ds.file_path=/code/datasets/{args.validation_dataset}/validation-sft.jsonl "
+                f" model.data.validation_ds.file_names=[/code/datasets/{args.validation_dataset}/validation-sft.jsonl] "
             ) + extra_arguments
 
     if args.training_algo == "dpo":

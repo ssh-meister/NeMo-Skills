@@ -46,10 +46,12 @@ python pipeline/run_pipeline.py \
       --num_gpus 1 \
       --disable_wandb \
       --extra_eval_args "+prompt=openmathinstruct/sft ++max_samples=4 --benchmarks gsm8k:1 math:0 --num_jobs 1 --num_gpus 1" \
-      ++model.data.train_ds.file_path=/data/gsm8k/validation-sft.jsonl \
-      ++trainer.sft.max_steps=15 \
-      ++trainer.sft.val_check_interval=10 \
-      ++trainer.sft.limit_val_batches=2 \
+      ++model.data.train_ds.file_names=[/data/gsm8k/validation-sft.jsonl] \
+      ++model.data.train_ds.concat_sampling_probabilities=[1.] \
+      ++model.data.validation_ds.file_names=[/data/gsm8k/validation-sft.jsonl] \
+      ++trainer.max_steps=15 \
+      ++trainer.val_check_interval=10 \
+      ++trainer.limit_val_batches=2 \
       ++model.data.train_ds.global_batch_size=4 \
       ++model.tensor_model_parallel_size=1 \
       ++model.pipeline_model_parallel_size=1 \

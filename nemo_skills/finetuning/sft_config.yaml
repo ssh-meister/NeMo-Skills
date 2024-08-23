@@ -20,23 +20,17 @@ trainer:
   accelerator: gpu
   precision: bf16
 
-  sft:
-    max_epochs: 2
-    max_steps: -1
-
-    val_check_interval: 1000  # TODO: currently float values are not supported
-    save_interval: ${.val_check_interval}
-
-    limit_val_batches: 1  # since loss is not meaningful by default we are limiting the validation batches to 1
-    gradient_clip_val: null
+  val_check_interval: 1000  # TODO: currently float values are not supported
+  limit_val_batches: 1  # since loss is not meaningful by default we are limiting the validation batches to 1
 
   # do not change these
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
   max_time: null
-  max_epochs: ${.sft.max_epochs}
-  max_steps: ${.sft.max_steps}
+  max_epochs: 2
+  max_steps: -1
+  gradient_clip_val: null
   log_every_n_steps: 10
 
 exp_manager:
@@ -51,7 +45,7 @@ exp_manager:
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
-    monitor: val_loss
+    monitor: validation_${model.data.validation_ds.metric.name}
     save_top_k: 8
     mode: min
     save_nemo_on_train_end: False
@@ -98,8 +92,10 @@ model:
     restore_from_path: null
 
     lora_tuning:
-      target_modules: ['attention_qkv'] # currently only support attention_qkv
+      variant: "nemo" # can be "nemo" or "canonical"
+      target_modules: ['attention_qkv'] # this can either be 'attention_qkv','attention_dense','mlp_fc1','mlp_fc2', attention (qkv & dense), mlp (fc1 & fc2)
       adapter_dim: 32
+      alpha: ${model.peft.lora_tuning.adapter_dim} 
       adapter_dropout: 0.0
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
@@ -118,7 +114,6 @@ model:
       end_of_name: "\x0A\x0A"  # \0x0A is '\n'
 
     sample: False # create the index mapping files for the sample data, so max_steps * global_batch_size can be larger than the dataset size
-    num_workers: 2
     dataloader_type: single  # only supports single
     train_ds:
       # Example of how to specify paths to multiple datasets
@@ -128,14 +123,22 @@ model:
       #   - /path/to/boolq.jsonl
       # Example of how each dataset is formatted
       # {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
-      file_path: ??? # Path to a JSONL file corresponding to the source data. Data format is identical to validation_ds.
+      file_names: ??? # Path to a list of JSONL files corresponding to the source data.
       global_batch_size: 256
       micro_batch_size: 1
       shuffle: True
+      num_workers: 0
       memmap_workers: 2
+      pin_memory: True
       max_seq_length: 4096
       min_seq_length: 1
       drop_last: True
+      # Example of how to specify concat_sampling_probabilities
+      # concat_sampling_probabilities:
+      #   - 0.5
+      #   - 0.25
+      #   - 0.25
+      concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
       label_key: 'output'
       add_eos: False
       add_sep: False
@@ -147,11 +150,14 @@ model:
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right']
 
     validation_ds:
-      file_path: ??? # Path to a JSONL file corresponding to the source data. Data format is identical to validation_ds.
+      file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
+      names: null # Names of the corresponding datasets used to log metrics.
       global_batch_size: ${model.data.train_ds.global_batch_size}
       micro_batch_size: ${model.data.train_ds.micro_batch_size}
       shuffle: False
+      num_workers: 0
       memmap_workers: ${model.data.train_ds.memmap_workers}
+      pin_memory: True
       max_seq_length: ${model.data.train_ds.max_seq_length}
       min_seq_length: 1
       drop_last: False
@@ -159,12 +165,20 @@ model:
       add_eos: ${model.data.train_ds.add_eos}
       add_sep: ${model.data.train_ds.add_sep}
       add_bos: ${model.data.train_ds.add_bos}
+      write_predictions_to_file: False
+      output_file_path_prefix: null # Prefix of the file to write predictions to.
       truncation_field: ${model.data.train_ds.truncation_field} # Options: keys in prompt_template
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       hf_dataset: False # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right']
       output_original_text: True  # needed for the proper metrics support
+
+      metric:
+        name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
+        average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
+        num_classes: null
+        # must add here parameters for metric init - https://github.com/NVIDIA/NeMo/blob/08cddbfa432917de7ba71c7b97412712012ec869/nemo/collections/multimodal/speech_llm/models/modular_models.py#L1057
 
   optim:
     name: distributed_fused_adam # Supports distributed optimizer for memory savings. To enable, set to 'distributed_fused_adam'. Needs Apex to be built with specific args to work.
@@ -178,5 +192,3 @@ model:
       warmup_steps: 0
       constant_steps: 0
       min_lr: ${model.optim.lr} # No interpolation happening if the min_lr is not set to be different from lr
-
-
