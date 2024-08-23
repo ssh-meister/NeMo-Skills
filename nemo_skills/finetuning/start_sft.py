@@ -18,6 +18,7 @@ import torch.multiprocessing as mp
 
 # adding custom metric
 from code_generation_accuracy import CodeGenerationAccuracy
+from hydra.utils import instantiate
 from nemo.collections.common.metrics.metric_string_to_torchmetric import MetricStringToTorchMetric
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
@@ -25,6 +26,8 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 from omegaconf.omegaconf import OmegaConf
+
+from nemo_skills.inference.inference_strategy import CodeExecutionStrategy
 
 MetricStringToTorchMetric["code_generation_accuracy"] = CodeGenerationAccuracy
 
@@ -47,6 +50,16 @@ def main(cfg) -> None:
 
     model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
     model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
+
+    if cfg.model.data.validation_ds.metric.name == 'code_generation_accuracy':
+        model.val_metric[0].init_sandbox(**cfg.model.data.validation_ds.metric.sandbox_cfg)
+    if 'inference' in cfg.model:
+        config = OmegaConf.to_container(cfg.model.inference, resolve=True)
+        # registering code execution inference strategy
+        config['strategy'] = CodeExecutionStrategy(
+            sandbox_cfg=cfg.model.data.validation_ds.metric.sandbox_cfg, model=model
+        )  # instantiate(cfg.model.inference.strategy)
+        model.set_inference_config(config)
 
     trainer.fit(model)
 

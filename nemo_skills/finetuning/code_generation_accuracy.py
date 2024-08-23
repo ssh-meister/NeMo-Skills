@@ -30,7 +30,13 @@ class CodeGenerationAccuracy(Metric):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
         self.add_state("correct", default=torch.tensor(0.0, device='cuda'), dist_reduce_fx="sum")
         self.add_state("total", default=torch.tensor(0, device='cuda'), dist_reduce_fx="sum")
-        self.sandbox = get_sandbox(**sandbox_cfg)
+        self.sandbox = None
+        if "sandbox_type" in sandbox_cfg:
+            self.sandbox = get_sandbox(**sandbox_cfg)
+
+    def init_sandbox(self, **sandbox_cfg):
+        if self.sandbox is None:
+            self.sandbox = get_sandbox(**sandbox_cfg)
 
     def compute(self):
         return self.correct.float() / self.total

@@ -65,6 +65,44 @@ python pipeline/run_pipeline.py \
         assert metrics['num_entries'] == 4
 
 
+# @pytest.mark.gpu
+# def test_sft_codegen_pipeline():
+#     model_path = os.getenv('NEMO_SKILLS_TEST_NEMO_MODEL')
+#     if not model_path:
+#         pytest.skip("Define NEMO_SKILLS_TEST_NEMO_MODEL to run this test")
+#     output_path = os.getenv('NEMO_SKILLS_TEST_OUTPUT', '/tmp')
+
+#     cmd = f""" \
+# python {Path(__file__).absolute().parents[2]}/datasets/gsm8k/prepare.py --split_name validation && \
+# export NEMO_SKILLS_DATA={Path(__file__).absolute().parents[2] / 'datasets'} && \
+# export NEMO_SKILLS_RESULTS={output_path} && \
+# python pipeline/run_pipeline.py \
+#       --expname test-sft-codegen \
+#       --nemo_model {model_path} \
+#       --num_nodes 1 \
+#       --num_gpus 1 \
+#       --disable_wandb \
+#       --config-name sft_config_codegen \
+#       --extra_eval_args "+prompt=openmathinstruct/sft ++max_samples=4 --benchmarks gsm8k:1 math:0 --num_jobs 1 --num_gpus 1" \
+#       ++model.data.train_ds.file_names=[/data/gsm8k/validation-sft.jsonl] \
+#       ++model.data.train_ds.concat_sampling_probabilities=[1.] \
+#       ++model.data.validation_ds.file_names=[/data/gsm8k/validation-sft.jsonl] \
+#       ++trainer.max_steps=15 \
+#       ++trainer.val_check_interval=10 \
+#       ++trainer.limit_val_batches=2 \
+#       ++model.data.train_ds.global_batch_size=4 \
+#       ++model.tensor_model_parallel_size=1 \
+#       ++model.pipeline_model_parallel_size=1 \
+#       ++model.optim.lr=1e-6 \
+# """
+#     subprocess.run(cmd, shell=True)
+
+#     # only checking the total, since model is tiny
+#     for gen_file in ['gsm8k/output-greedy.jsonl', 'gsm8k/output-rs0.jsonl', 'math/output-greedy.jsonl']:
+#         metrics = compute_metrics([f"{output_path}/nemo-skills-exps/results/test-sft/{gen_file}"], MathEval())
+#         assert metrics['num_entries'] == 4
+
+
 @pytest.mark.gpu
 def test_dpo_pipeline():
     model_path = os.getenv('NEMO_SKILLS_TEST_NEMO_MODEL')
