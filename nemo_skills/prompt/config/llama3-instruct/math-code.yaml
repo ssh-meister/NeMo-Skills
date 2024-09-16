@@ -3,7 +3,9 @@ few_shot_examples:
   template: |-
     Given the following problem, reason and give a final answer to the problem.
     Problem: {problem}
-    Your response should end with "The final answer is \boxed{{[answer]}}" where [answer] is the response to the problem.{user_end}{assistant_begin}{solution}{assistant_end}{user_begin}
+    Your response should end with "The final answer is \boxed{{[answer]}}" where [answer] is the response to the problem.
+    
+    {user_end}{assistant_begin}My solution:\n{solution}{assistant_end}{user_begin}\n\n\n\n\n\n
   suffix: ""
   examples_type: math_text_with_code
 
@@ -11,3 +13,5 @@ user: |-
   {examples}Given the following problem, reason and give a final answer to the problem.
   Problem: {problem}
   Your response should end with "The final answer is \boxed{{[answer]}}" where [answer] is the response to the problem.
+
+  My solution:\n
