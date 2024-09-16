@@ -176,7 +176,7 @@ solutions[c]
 {end_code}{start_code_output}
 -7
 {end_code_output}
-So c is \\boxed{-7}
+So c is -7. The final answer is \\boxed{{-7}}
 """.strip(),
     },
     {
@@ -184,7 +184,7 @@ So c is \\boxed{-7}
         'solution': '''
 The definition of an odd function is that $f(-x) = -f(x)$.
 Applying this to $f(f(-x))$ we get $f(f(-x)) = f(-f(x)) = -f(f(x))$.
-Thus, $f(f(x))$ is an \\boxed{odd} function.
+Thus, $f(f(x))$ is an odd function. The final answer is \\boxed{{odd}}
 '''.strip(),
     },
     {
@@ -217,7 +217,7 @@ print(options[min_idx])
 {end_code}{start_code_output}
 1/6
 {end_code_output}
-So the answer is \\boxed{1/6}.
+The final answer is \\boxed{{1/6}}
 """.strip(),
     },
     {
@@ -248,7 +248,7 @@ solutions = solve((eq1, eq2, diagonal_eq), (x, y, z, r))
 {end_code}{start_code_output}
 [-10, -10, 10, 10]
 {end_code_output}
-Since the radius of the sphere is positive, we get $r = \\boxed{10}$.
+Since the radius of the sphere is positive, we get $r = 10$. The final answer is \\boxed{{10}}
 """.strip(),
     },
     {
@@ -277,7 +277,7 @@ print(dist)
 {end_code}{start_code_output}
 sqrt(2)*(1008 + 1008*sqrt(3))
 {end_code_output}
-So the bee is $\\boxed{1008\\sqrt{2} + 1008\\sqrt{6}}$ far from the starting point.
+So the bee is $1008\\sqrt{2} + 1008\\sqrt{6}$ far from the starting point. The final answer is \\boxed{{1008\\sqrt{2} + 1008\\sqrt{6}}}.
 """.strip(),
     },
 ]
