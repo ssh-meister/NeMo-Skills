@@ -15,29 +15,27 @@
 import re
 from typing import Dict, Tuple
 
-# CODE_SEPARATORS = (
-#     '<|python_tag|>',
-#     '<|eom_id|>',
-# )  # used to execute code within these tags
-# CODE_OUTPUT_SEPARATORS = (
-#     '<|start_header_id|>ipython<|end_header_id|>',
-#     # we assume that assistant always has more to say after executing the code!
-#     '<|eot_id|><|start_header_id|>assistant<|end_header_id|>',
-# )  # used to extract the code output
-CODE_SEPARATORS = ('<llm-code>', '</llm-code>')  # used to execute code within these tags
-CODE_OUTPUT_SEPARATORS = ('<llm-code-output>', '</llm-code-output>')  # used to extract the code output
+CODE_SEPARATORS = (
+    '<|python_tag|>',
+    '<|eom_id|>',
+)  # used to execute code within these tags
+CODE_OUTPUT_SEPARATORS = (
+    '<|start_header_id|>ipython<|end_header_id|>',
+    # we assume that assistant always has more to say after executing the code!
+    '<|eot_id|><|start_header_id|>assistant<|end_header_id|>',
+)  # used to extract the code output
 
 
 def format_code_output(execution_dict: Dict[str, str]):
     """Formatting code output to be displayed as an llm expects it."""
-    output = ""  # execution_dict["process_status"]
+    output = execution_dict["process_status"]
     if execution_dict['stdout']:
-        output += f"\n{execution_dict['stdout']}\n"
-    # if execution_dict['stderr']:
-    #     output += f"\n[stderr]\n{execution_dict['stderr']}\n[/stderr]"
+        output += f"\n[stdout]\n{execution_dict['stdout']}\n[/stdout]"
+    if execution_dict['stderr']:
+        output += f"\n[stderr]\n{execution_dict['stderr']}\n[/stderr]"
 
     # wrapping with code output separators
-    output = f"{CODE_OUTPUT_SEPARATORS[0]}{output}{CODE_OUTPUT_SEPARATORS[1]}\n"
+    output = f"{CODE_OUTPUT_SEPARATORS[0]}\n\n{output}{CODE_OUTPUT_SEPARATORS[1]}\n\n"
     return output
 
 
