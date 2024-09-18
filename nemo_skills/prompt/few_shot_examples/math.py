@@ -174,12 +174,9 @@ point_2 = parabola_eq.subs({x: 3, y: 17})
 solutions = sp.solve((point_1,point_2), (b, c))
 solutions[c]
 {end_code}{start_code_output}
-
-completed
-[stdout]
 -7
-[/stdout]{end_code_output}
-So c is -7. The final answer is \\boxed{-7}
+{end_code_output}
+So c is \\boxed{-7}.
 """.strip(),
     },
     {
@@ -187,7 +184,7 @@ So c is -7. The final answer is \\boxed{-7}
         'solution': '''
 The definition of an odd function is that $f(-x) = -f(x)$.
 Applying this to $f(f(-x))$ we get $f(f(-x)) = f(-f(x)) = -f(f(x))$.
-Thus, $f(f(x))$ is an odd function. The final answer is \\boxed{odd}
+Thus, $f(f(x))$ is an odd function. The final answer is \\boxed{odd}.
 '''.strip(),
     },
     {
@@ -206,11 +203,8 @@ options = [Rational(1, 4), Rational(1, 5), Rational(1, 6), Rational(1, 7), Ratio
 # let's print out the differences
 [Abs(medal_frac - frac_option) for frac_option in options]
 {end_code}{start_code_output}
-
-completed
-[stdout]
 [2/25, 3/100, 1/300, 19/700, 9/200]
-[/stdout]{end_code_output}
+{end_code_output}
 Let's now check which difference is the smallest.
 {start_code}
 import numpy as np
@@ -221,12 +215,9 @@ min_idx = np.argmin([2/25, 3/100, 1/300, 19/700, 9/200])
 # Print the closest option
 print(options[min_idx])
 {end_code}{start_code_output}
-
-completed
-[stdout]
 1/6
-[/stdout]{end_code_output}
-The final answer is \\boxed{1/6}
+{end_code_output}
+The final answer is \\boxed{1/6}.
 """.strip(),
     },
     {
@@ -255,12 +246,9 @@ solutions = solve((eq1, eq2, diagonal_eq), (x, y, z, r))
 # let's see which values of r we get
 [solution[-1] for solution in solutions]
 {end_code}{start_code_output}
-
-completed
-[stdout]
 [-10, -10, 10, 10]
-[/stdout]{end_code_output}
-Since the radius of the sphere is positive, we get $r = 10$. The final answer is \\boxed{10}
+{end_code_output}
+Since the radius of the sphere is positive, we get $r = \\boxed{10}$.
 """.strip(),
     },
     {
@@ -287,12 +275,9 @@ real, img = (position.as_real_imag())
 dist = sqrt(real**2 + img**2)
 print(dist)
 {end_code}{start_code_output}
-
-completed
-[stdout]
 sqrt(2)*(1008 + 1008*sqrt(3))
-[/stdout]{end_code_output}
-So the bee is $1008\\sqrt{2} + 1008\\sqrt{6}$ far from the starting point. The final answer is \\boxed{1008\\sqrt{2} + 1008\\sqrt{6}}.
+{end_code_output}
+So the bee is $\\boxed{1008\\sqrt{2} + 1008\\sqrt{6}}$ far from the starting point.
 """.strip(),
     },
 ]

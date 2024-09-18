@@ -1,0 +1,24 @@
+few_shot_examples:
+  prefix: ""
+  template: |-
+    Solve the following math problem efficiently and clearly.
+
+    Write a detailed step-by-step solution, using Python code for all nontrivial calculations.
+
+    Your response should end with "The final answer is \boxed{{[answer]}}" where [answer] is the response to the problem.
+    
+    Problem: {problem}{user_end}{assistant_begin}{solution}{assistant_end}{user_begin}
+  suffix: ""
+  examples_type: math_text_with_code
+
+system: ""
+
+user: |-
+  {examples}
+  Solve the following math problem efficiently and clearly.
+
+  Write a detailed step-by-step solution, using Python code for all nontrivial calculations.
+
+  Your response should end with "The final answer is \boxed{{[answer]}}" where [answer] is the response to the problem.
+  
+  Problem: {problem}
