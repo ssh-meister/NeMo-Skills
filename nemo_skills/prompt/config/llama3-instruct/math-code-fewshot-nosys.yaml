@@ -5,7 +5,11 @@ few_shot_examples:
 
     Write a detailed step-by-step solution, using Python code for all nontrivial calculations.
 
-    Your response should end with "The final answer is \boxed{{[answer]}}" where [answer] is the response to the problem.
+    Regardless of the approach, always conclude with:
+
+    Therefore, the final answer is: $\boxed{{answer}}$. I hope it is correct.
+
+    Where [answer] is just the final number or expression that solves the problem.
     
     Problem: {problem}{user_end}{assistant_begin}{solution}{assistant_end}{user_begin}
   suffix: ""
@@ -19,6 +23,10 @@ user: |-
 
   Write a detailed step-by-step solution, using Python code for all nontrivial calculations.
 
-  Your response should end with "The final answer is \boxed{{[answer]}}" where [answer] is the response to the problem.
+  Regardless of the approach, always conclude with:
+
+  Therefore, the final answer is: $\boxed{{answer}}$. I hope it is correct.
+
+  Where [answer] is just the final number or expression that solves the problem.
   
   Problem: {problem}
