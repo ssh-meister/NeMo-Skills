@@ -7,7 +7,7 @@ few_shot_examples:
 
     Regardless of the approach, always conclude with:
 
-    Therefore, the final answer is: $\boxed{{answer}}$. I hope it is correct.
+    Therefore, the final answer is $\boxed{{answer}}$. I hope it is correct.
 
     Where [answer] is just the final number or expression that solves the problem.
     
@@ -25,7 +25,7 @@ user: |-
 
   Regardless of the approach, always conclude with:
 
-  Therefore, the final answer is: $\boxed{{answer}}$. I hope it is correct.
+  Therefore, the final answer is $\boxed{{answer}}$. I hope it is correct.
 
   Where [answer] is just the final number or expression that solves the problem.
   
