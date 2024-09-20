@@ -1,9 +1,10 @@
 processors_to_run: all
 
 preprocessed_dataset_files: null  # can specify multiple patters separated by space
-prediction_jsonl_files: null  # can specify datasets from HF instead of prediction_jsonl_files
+input_files: null  # can specify datasets from HF instead of prediction_jsonl_files
 output_path: ???
 
+exclude_optional_keys: true # exclude keys other than input, output and expected_answer from the final manifest
 metadata: null  # can provide additional metadata to store (e.g. dataset or generation_type)
 skip_first: 0  # useful for skipping validation set from train_full generation (it's always first)
 add_correct: true  # can set to False if only want to export incorrect solutions
@@ -14,27 +15,41 @@ random_seed: 42
 do_shuffle: true
 num_output_samples: null
 
-prompt_type: openmathinstruct/sft
+# length criteria
+min_solution_length: 0
+max_solution_length: 2048
+hf_model_name: "meta-llama/Meta-Llama-3.1-8B"
+
+prompt_config: null
+prompt_template: null
 chat_format: null  # null/nemotron/llama
 generation_suffix: ""  # suffix to add to the end of expected response (e.g. <|eot_id|>)
 
-input_key: question
+input_key: problem
 output_key: generation
+
+majority_filter:
+  # minimum number of majority votes to use the answer
+  min_majority_votes: 0
+  # minimum portion of majority votes to use the answer
+  min_majority_percentage: 0.
 
 filters:
   drop_multi_boxed: true
   drop_useless_code: false
   drop_broken_code: true
+  majority_filter: false
   trim_solutions: true
   drop_incorrect_arithmetic: true
   split_arithmetic: true
+  remove_len_outlier_solutions: false
   code_text_filter: null
 
 
 processors:
   - _target_: nemo_skills.finetuning.data_preparation_utils.preprocessing.ReadData
     preprocessed_dataset_files: ${preprocessed_dataset_files}
-    prediction_jsonl_files: ${prediction_jsonl_files}
+    input_files: ${input_files}
     input_key: ${input_key}
     output_key: ${output_key}
     skip_first: ${skip_first}
@@ -52,6 +67,11 @@ processors:
   - _target_: nemo_skills.finetuning.data_preparation_utils.filters.DropBrokenCode
     should_run: ${filters.drop_broken_code}
     solution_key: ${output_key}
+
+  - _target_: nemo_skills.finetuning.data_preparation_utils.filters.MajorityFiler
+    should_run: ${filters.majority_filter}
+    min_majority_votes: ${majority_filter.min_majority_votes}
+    min_majority_portion: ${majority_filter.min_majority_portion}
 
   - _target_: nemo_skills.finetuning.data_preparation_utils.filters.TrimSolutions
     should_run: ${filters.trim_solutions}
@@ -78,10 +98,18 @@ processors:
       - {input: {generation: "1 + 7 * 19 = 134"}, output: {generation: "1 + 7 * 19 = 1 + 133 = 134"}}
       - {input: {generation: "3 * (1 + 7) / 4 = 6"}, output: {generation: "3 * (1 + 7) / 4 = 3 * 8 / 4 = 24 / 4 = 6"}}
 
+  - _target_: nemo_skills.finetuning.data_preparation_utils.filters.RemoveLenOutlierSolutions
+    should_run: ${filters.remove_len_outlier_solutions}
+    solution_key: ${output_key}
+    min_length: ${min_solution_length}
+    max_length: ${max_solution_length}
+    hf_model_name: ${hf_model_name}
+
   - _target_: nemo_skills.finetuning.data_preparation_utils.preprocessing.GroupSamples
     group_key: ${input_key}
 
   - _target_: nemo_skills.finetuning.data_preparation_utils.filters.CodeTextFilter
+    should_run: ${filters.code_text_filter}
     filter_type: ${filters.code_text_filter}
     solution_key: ${output_key}
 
@@ -93,9 +121,11 @@ processors:
 
   - _target_: nemo_skills.finetuning.data_preparation_utils.preprocessing.WriteFinalSftManifest
     output_manifest_file: ${output_path}
-    prompt_type: ${prompt_type}
+    prompt_config: ${prompt_config}
+    prompt_template: ${prompt_template}
     input_key: ${input_key}
     output_key: ${output_key}
     chat_format: ${chat_format}
     generation_suffix: ${generation_suffix}
     metadata: ${metadata}
+    exclude_optional_keys: ${exclude_optional_keys}

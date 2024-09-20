@@ -23,7 +23,7 @@ import hydra
 from omegaconf import MISSING
 from tqdm import tqdm
 
-from nemo_skills.evaluation.metrics import MathEval, read_predictions
+from nemo_skills.evaluation.metrics import MathMetrics, read_predictions
 from nemo_skills.utils import get_help_message, nested_dataclass, setup_logging, unroll_files
 
 LOG = logging.getLogger(__file__)
@@ -36,26 +36,14 @@ class FillMajorityAnswerConfig:
     # list of files to use for majority voting.
     # Can specify multiple patterns separated by space
     # e.g. "path/to/file1.jsonl path/to/file2.jsonl" or with regex
-    # "test_folder/output-rs*.jsonl"
+    # "test_dir/output-rs*.jsonl"
     input_files: Any = MISSING
 
     # if set to True will error if any responses/data is missing
     allow_incomplete: bool = False
 
-    # minimum number of majority votes to use the answer.
-    # -1 means use half of the votes, which is a good default value
-    min_votes: int = 0
-
     # will be used to fill up when not enough votes are available for the majority
     default_answer: str = "no_answer"
-
-    # will not use any negative answers as this likely indicates bad problems
-    # (at least for GSM8K domain). If running with other data, where negative answers
-    # are common, should be set to False
-    drop_negative_answers: bool = False
-
-    # will not use any non-integer answers as this might indicates bad problems
-    drop_noninteger_answers: bool = False
 
     def __post_init__(self):
         """Building data_file from dataset/split_name if not provided directly."""
@@ -77,7 +65,7 @@ def fill_majority_answer(cfg: FillMajorityAnswerConfig):
         cfg.min_votes = len(file_handles) // 2
 
     # currently majority is only defined for math evals
-    evaluator = MathEval()
+    evaluator = MathMetrics()
 
     majority_answers = []
     all_predictions = []
@@ -93,23 +81,6 @@ def fill_majority_answer(cfg: FillMajorityAnswerConfig):
         if len(valid_answers_and_results) == 0:
             continue
         (majority_answer, _), num_votes = Counter(valid_answers_and_results).most_common(1)[0]
-
-        # TODO: remove all of this logic as it should be moved to preprocessing of sft data
-        if num_votes <= cfg.min_votes:
-            continue
-
-        if cfg.drop_negative_answers or cfg.drop_noninteger_answers:
-            try:
-                majority_answer = float(majority_answer)
-            except ValueError:
-                continue
-
-            if cfg.drop_negative_answers and majority_answer < 0:
-                continue
-
-            if cfg.drop_noninteger_answers and not majority_answer.is_integer():
-                continue
-
         majority_answers[-1] = (majority_answer, (num_votes, len(file_handles)))
         retained_questions += 1
 
