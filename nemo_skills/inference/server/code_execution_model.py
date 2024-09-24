@@ -129,7 +129,7 @@ class CodeExecutionWrapper:
         num_executions = 0
 
         # Using 32 max executions at a time to not hit timeouts in a sandbox
-        with ThreadPoolExecutor(max_workers=16) as executor:
+        with ThreadPoolExecutor(max_workers=1) as executor:
             while len(remaining_ids) > 0:
                 num_executions += 1
                 request["prompts"] = [new_outputs[idx]['prompt'] for idx in remaining_ids]
