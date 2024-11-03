@@ -16,7 +16,6 @@ import hydra
 
 from nemo_skills.utils import setup_logging
 
-import sys
 from sdp.run_processors import SDPRunner
 
 
