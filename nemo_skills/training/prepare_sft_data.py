@@ -13,12 +13,10 @@
 # limitations under the License.
 
 import hydra
-import time
 
 from nemo_skills.utils import setup_logging
 
 import sys
-sys.path.append("/ameister/StreamPR/NeMo-speech-data-processor")
 from sdp.run_processors import SDPRunner
 
 
@@ -29,8 +27,5 @@ def main(cfg):
 
 
 if __name__ == "__main__":
-    start = time.time()
     setup_logging()
     main()
-    end = time.time()
-    print(f"Execution finished in {end - start} seconds.")
