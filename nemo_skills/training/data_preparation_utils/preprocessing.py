@@ -20,6 +20,7 @@ from itertools import chain
 from typing import Dict, Optional
 
 from sdp.processors.base_processor import BaseProcessor
+from sdp.data_units.data_entry import DataEntry
 from tqdm.contrib.concurrent import process_map
 
 from nemo_skills.prompt.utils import get_prompt
@@ -132,7 +133,7 @@ class ReadData(BaseProcessor):
             samples.extend(list(chain(*results)))
         LOG.info("Total samples before deduplication: %d", len(samples))
         samples_count = 0
-        with open(self.output_manifest_file, "wt", encoding="utf-8") as fout:
+        with open(self.output.source, "wt", encoding="utf-8") as fout:
             for sample in self._unique_iterator(samples):
                 fout.write(json.dumps(sample) + "\n")
                 samples_count += 1
@@ -146,14 +147,12 @@ class GroupSamples(BaseProcessor):
 
     def process(self):
         samples = defaultdict(list)
-        with open(self.input_manifest_file, "rt", encoding="utf-8") as fin:
-            for line in fin:
-                sample = json.loads(line)
-                samples[sample[self.group_key]].append(sample)
-
-        with open(self.output_manifest_file, "wt", encoding="utf-8") as fout:
-            for groupped_samples in samples.values():
-                fout.write(json.dumps(groupped_samples) + "\n")
+        
+        for sample in self.input.read_entries():
+            samples[sample[self.group_key]].append(sample)
+        
+        data_entries = [DataEntry(sample) for sample in samples.values()]
+        self.output.write_entries(data_entries)
 
 
 class ShuffleAndDownsampleData(BaseProcessor):
@@ -183,11 +182,7 @@ class ShuffleAndDownsampleData(BaseProcessor):
             raise ValueError("Number of samples should be specified when sampling method is `random` or `fair`")
 
     def process(self):
-        groupped_samples = []
-        with open(self.input_manifest_file, "rt", encoding="utf-8") as fin:
-            for line in fin:
-                samples = json.loads(line)
-                groupped_samples.append(samples)
+        groupped_samples = self.input.read_entries()
 
         random.seed(self.random_seed)
         if self.sampling_method is None:
@@ -220,11 +215,9 @@ class ShuffleAndDownsampleData(BaseProcessor):
                 soln_counter += 1
             if self.do_shuffle:
                 random.shuffle(output_instances)
-
-        with open(self.output_manifest_file, "wt", encoding="utf-8") as fout:
-            for instance in output_instances:
-                fout.write(json.dumps(instance) + "\n")
-
+        
+        output_instances = [DataEntry(instance) for instance in output_instances]
+        self.output.write_entries(output_instances)
 
 class WriteFinalSftManifest(BaseProcessor):
     def __init__(
@@ -260,58 +253,54 @@ class WriteFinalSftManifest(BaseProcessor):
     def process(self):
         samples_count = 0
         seen_predictions = defaultdict(set)
-        with (
-            open(self.input_manifest_file, "rt", encoding="utf-8") as fin,
-            open(self.output_manifest_file, "wt", encoding="utf-8") as fout,
-        ):
-            prompt = get_prompt(self.prompt_config, self.prompt_template)
-            # only looping over the correct samples (unless asked for incorrect)
-            for line in fin:
-                elem = json.loads(line)
-                question = elem[self.input_key]
-                # deduplication
-                if elem[self.output_key] in seen_predictions[question]:
-                    continue
-                seen_predictions[question].add(elem[self.output_key])
-                if 'expected_answer' in elem:
-                    elem['expected_answer'] = str(elem['expected_answer'])
-                # take only required keys from the input if exclude_optional_keys is True
-                output_sample = {}
-                if not self.exclude_optional_keys:
-                    output_sample = json.loads(line)
-                elif "expected_answer" in elem:
-                    output_sample["expected_answer"] = elem["expected_answer"]
 
-                if self.chat_format is None:
-                    generation = elem.pop(self.output_key)
-                    output_sample["input"] = prompt.fill(input_dict=elem)
-                    output_sample["output"] = generation + self.generation_suffix
-                elif self.chat_format.lower() == "nemotron":
-                    output_sample['conversations'] = [
-                        {'value': self.prompt.config.user.format(**elem), 'from': 'User', 'canonical_form': ''},
-                        {'value': elem.pop(self.output_key), 'from': 'Assistant', 'canonical_form': ''},
-                    ]
-                    output_sample['system'] = self.prompt.config.system
-                    output_sample['mask'] = 'User'
-                elif self.chat_format.lower() == "llama":
-                    output_sample['conversations'] = [
-                        {
-                            'value': self.prompt.config.user.format(**elem),
-                            'from': '<|start_header_id|>user<|end_header_id|>',
-                            'canonical_form': '',
-                        },
-                        {
-                            'value': elem.pop(self.output_key),
-                            'from': '<|start_header_id|>assistant<|end_header_id|>',
-                            'canonical_form': '',
-                        },
-                    ]
-                    output_sample['system'] = self.prompt.config.system
-                    output_sample['mask'] = '<|start_header_id|>user<|end_header_id|>'
-                else:
-                    raise ValueError(f"Chat format {self.chat_format} is not supported")
-                output_sample.update(self.metadata)
-                fout.write(json.dumps(output_sample) + "\n")
-                samples_count += 1
-
+        prompt = get_prompt(self.prompt_config, self.prompt_template)
+        output_entries = []
+        # only looping over the correct samples (unless asked for incorrect)
+        for elem in self.input.read_entry():
+            question = elem[self.input_key]
+            # deduplication
+            if elem[self.output_key] in seen_predictions[question]:
+                continue
+            seen_predictions[question].add(elem[self.output_key])
+            if 'expected_answer' in elem:
+                elem['expected_answer'] = str(elem['expected_answer'])
+            # take only required keys from the input if exclude_optional_keys is True
+            output_sample = {}
+            if not self.exclude_optional_keys:
+                output_sample = elem
+            elif "expected_answer" in elem:
+                output_sample["expected_answer"] = elem["expected_answer"]
+            if self.chat_format is None:
+                generation = elem.pop(self.output_key)
+                output_sample["input"] = prompt.fill(input_dict=elem)
+                output_sample["output"] = generation + self.generation_suffix
+            elif self.chat_format.lower() == "nemotron":
+                output_sample['conversations'] = [
+                    {'value': self.prompt.config.user.format(**elem), 'from': 'User', 'canonical_form': ''},
+                    {'value': elem.pop(self.output_key), 'from': 'Assistant', 'canonical_form': ''},
+                ]
+                output_sample['system'] = self.prompt.config.system
+                output_sample['mask'] = 'User'
+            elif self.chat_format.lower() == "llama":
+                output_sample['conversations'] = [
+                    {
+                        'value': self.prompt.config.user.format(**elem),
+                        'from': '<|start_header_id|>user<|end_header_id|>',
+                        'canonical_form': '',
+                    },
+                    {
+                        'value': elem.pop(self.output_key),
+                        'from': '<|start_header_id|>assistant<|end_header_id|>',
+                        'canonical_form': '',
+                    },
+                ]
+                output_sample['system'] = self.prompt.config.system
+                output_sample['mask'] = '<|start_header_id|>user<|end_header_id|>'
+            else:
+                raise ValueError(f"Chat format {self.chat_format} is not supported")
+            output_sample.update(self.metadata)
+            self.output.write_entry(DataEntry(output_sample))
+            samples_count += 1
+            
         LOG.info("Prepared dataset size: %d", samples_count)
